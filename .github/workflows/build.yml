@@ -1,0 +1,51 @@
+name: Build Tweak
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: 解压源码包
+      run: |
+        if ls *.zip 1> /dev/null 2>&1; then
+          for f in *.zip; do
+            unzip -o "$f" -d .
+          done
+          if [ -d "CCWeatherEnhanced" ]; then
+            cp -r CCWeatherEnhanced/* .
+            rm -rf CCWeatherEnhanced
+          fi
+        fi
+        ls -la
+    
+    - name: 安装 Theos
+      run: |
+        export THEOS=~/theos
+        git clone --recursive https://github.com/theos/theos.git $THEOS
+        echo "THEOS=$THEOS" >> $GITHUB_ENV
+    
+    - name: 安装 iOS SDK
+      run: |
+        git clone https://github.com/theos/sdks.git ~/theos/sdks
+    
+    - name: 编译
+      run: |
+        export THEOS=~/theos
+        make clean package FINALPACKAGE=1
+      env:
+        THEOS: /Users/runner/theos
+    
+    - name: 上传 DEB
+      uses: actions/upload-artifact@v4
+      with:
+        name: CCWeatherEnhanced-deb
+        path: "**/*.deb"
+        if-no-files-found: error
