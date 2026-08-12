@@ -48,19 +48,42 @@ jobs:
       env:
         THEOS: /Users/runner/theos
     
+    - name: 手动注入 Info.plist 到 deb
+      run: |
+        DEB=$(find . -name "*.deb" | head -1)
+        echo "DEB: $DEB"
+        
+        rm -rf /tmp/deb_repack
+        mkdir -p /tmp/deb_repack
+        dpkg-deb -x "$DEB" /tmp/deb_repack
+        dpkg-deb -e "$DEB" /tmp/deb_repack/DEBIAN
+        
+        echo "=== 注入 Info.plist ==="
+        cp CCWeatherModule/Info.plist /tmp/deb_repack/var/jb/Library/ControlCenter/Bundles/CCWeatherModule.bundle/Info.plist
+        cp CCWeatherPrefs/Info.plist /tmp/deb_repack/var/jb/Library/PreferenceBundles/CCWeatherPrefs.bundle/Info.plist
+        
+        echo "=== 验证注入 ==="
+        ls -la /tmp/deb_repack/var/jb/Library/ControlCenter/Bundles/CCWeatherModule.bundle/Info.plist
+        ls -la /tmp/deb_repack/var/jb/Library/PreferenceBundles/CCWeatherPrefs.bundle/Info.plist
+        
+        rm -f "$DEB"
+        dpkg-deb --root-owner-group -b /tmp/deb_repack "$DEB"
+        echo "=== 重新打包完成 ==="
+        ls -la "$DEB"
+    
     - name: 验证二进制类型
       run: |
         DEB=$(find . -name "*.deb" | head -1)
         echo "DEB: $DEB"
         mkdir -p /tmp/verify
         dpkg-deb -x "$DEB" /tmp/verify
-        echo "=== Prefs 类型（应为 dynamically linked shared library）==="
+        echo "=== Prefs 类型 ==="
         file /tmp/verify/var/jb/Library/PreferenceBundles/CCWeatherPrefs.bundle/CCWeatherPrefs
         echo "=== Module 类型 ==="
         file /tmp/verify/var/jb/Library/ControlCenter/Bundles/CCWeatherModule.bundle/CCWeatherModule
         echo "=== Tweak 类型 ==="
         file /tmp/verify/var/jb/Library/MobileSubstrate/DynamicLibraries/CCWeatherTweak.dylib
-        echo "=== Info.plist 检查 ==="
+        echo "=== Info.plist ==="
         ls -la /tmp/verify/var/jb/Library/ControlCenter/Bundles/CCWeatherModule.bundle/Info.plist
         ls -la /tmp/verify/var/jb/Library/PreferenceBundles/CCWeatherPrefs.bundle/Info.plist
     
