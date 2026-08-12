@@ -13,49 +13,51 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
     
-    - name: 递归查找并解压所有 zip
+    - name: 解压源码并定位目录
       run: |
-        echo "查找 zip 文件..."
-        find . -name "*.zip" -type f
-        rm -rf /tmp/source_extract
-        mkdir -p /tmp/source_extract
-        for z in $(find . -name "*.zip" -type f); do
-          echo "解压: $z"
-          unzip -o "$z" -d /tmp/source_extract
-        done
-        if [ -d "/tmp/source_extract/CCWeatherEnhanced" ]; then
-          cp -r /tmp/source_extract/CCWeatherEnhanced/* .
-          cp -r /tmp/source_extract/CCWeatherEnhanced/.* . 2>/dev/null || true
-        else
-          cp -r /tmp/source_extract/* . 2>/dev/null || true
-        fi
-        echo "解压完成，当前文件："
+        echo "=== 当前文件 ==="
         ls -la
-        echo "子目录："
-        find . -maxdepth 2 -type d
+        find . -name "*.zip" -type f
+        rm -rf /tmp/src
+        mkdir -p /tmp/src
+        for z in $(find . -name "*.zip" -type f); do
+          unzip -o "$z" -d /tmp/src
+        done
+        if [ -f "/tmp/src/CCWeatherEnhanced/Makefile" ]; then
+          cp -r /tmp/src/CCWeatherEnhanced/* .
+          cp -r /tmp/src/CCWeatherEnhanced/.* . 2>/dev/null || true
+        elif [ -f "/tmp/src/Makefile" ]; then
+          cp -r /tmp/src/* .
+          cp -r /tmp/src/.* . 2>/dev/null || true
+        fi
+        ls -la
     
     - name: 安装 Theos
       run: |
         rm -rf ~/theos
         git clone --recursive https://github.com/theos/theos.git ~/theos
-        echo "THEOS=~/theos" >> $GITHUB_ENV
+    
+    - name: 安装 ldid（签名工具）
+      run: |
+        brew install ldid
+        which ldid
+        ldid --version 2>&1 || true
     
     - name: 安装 iOS SDK
       run: |
         rm -rf ~/theos/sdks
         git clone https://github.com/theos/sdks.git ~/theos/sdks
-        ls ~/theos/sdks/
     
     - name: 编译
       run: |
         export THEOS=~/theos
+        export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
         make clean package FINALPACKAGE=1
       env:
         THEOS: /Users/runner/theos
     
     - name: 列出产物
       run: |
-        echo "查找 deb："
         find . -name "*.deb" -type f
     
     - name: 上传 DEB
