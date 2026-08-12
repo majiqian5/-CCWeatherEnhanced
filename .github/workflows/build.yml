@@ -13,18 +13,24 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
     
-    - name: 解压源码包
+    - name: 递归查找并解压所有 zip
       run: |
-        if ls *.zip 1> /dev/null 2>&1; then
-          for f in *.zip; do
-            unzip -o "$f" -d .
-          done
-          if [ -d "CCWeatherEnhanced" ]; then
-            cp -r CCWeatherEnhanced/* .
-            rm -rf CCWeatherEnhanced
-          fi
+        echo "查找 zip 文件..."
+        find . -name "*.zip" -type f
+        for z in $(find . -name "*.zip" -type f); do
+          echo "解压: $z"
+          unzip -o "$z" -d /tmp/source_extract
+        done
+        if [ -d "/tmp/source_extract/CCWeatherEnhanced" ]; then
+          cp -r /tmp/source_extract/CCWeatherEnhanced/* .
+          cp -r /tmp/source_extract/CCWeatherEnhanced/.* . 2>/dev/null || true
+        else
+          cp -r /tmp/source_extract/* . 2>/dev/null || true
         fi
+        echo "解压完成，当前文件："
         ls -la
+        echo "子目录："
+        find . -maxdepth 2 -type d
     
     - name: 安装 Theos
       run: |
