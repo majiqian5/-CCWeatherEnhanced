@@ -1,4 +1,4 @@
-name: Build Tweak
+name: Build CCWeatherEnhanced
 
 on:
   push:
@@ -13,34 +13,27 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
     
-    - name: 解压源码并定位目录
+    - name: 解压源码（如果有zip）
       run: |
-        echo "=== 当前文件 ==="
-        ls -la
-        find . -name "*.zip" -type f
-        rm -rf /tmp/src
-        mkdir -p /tmp/src
-        for z in $(find . -name "*.zip" -type f); do
-          unzip -o "$z" -d /tmp/src
-        done
-        if [ -f "/tmp/src/CCWeatherEnhanced/Makefile" ]; then
-          cp -r /tmp/src/CCWeatherEnhanced/* .
-          cp -r /tmp/src/CCWeatherEnhanced/.* . 2>/dev/null || true
-        elif [ -f "/tmp/src/Makefile" ]; then
-          cp -r /tmp/src/* .
-          cp -r /tmp/src/.* . 2>/dev/null || true
+        if ls *.zip 1> /dev/null 2>&1; then
+          for z in *.zip; do
+            unzip -o "$z" -d /tmp/src
+          done
+          if [ -f "/tmp/src/CCWeatherEnhanced/Makefile" ]; then
+            cp -r /tmp/src/CCWeatherEnhanced/* .
+            cp -r /tmp/src/CCWeatherEnhanced/.* . 2>/dev/null || true
+          fi
         fi
-        echo "=== 最终根目录 ==="
         ls -la
+    
+    - name: 安装依赖
+      run: |
+        brew install ldid dpkg
     
     - name: 安装 Theos
       run: |
         rm -rf ~/theos
         git clone --recursive https://github.com/theos/theos.git ~/theos
-    
-    - name: 安装 ldid
-      run: |
-        brew install ldid
     
     - name: 安装 iOS SDK
       run: |
@@ -55,35 +48,21 @@ jobs:
       env:
         THEOS: /Users/runner/theos
     
-    - name: 手动注入 Info.plist 到 deb
+    - name: 验证二进制类型
       run: |
-        # 安装 dpkg
-        brew install dpkg
-        
-        echo "=== 查找 deb ==="
-        DEB=$(find . -name "*.deb" -type f | head -1)
+        DEB=$(find . -name "*.deb" | head -1)
         echo "DEB: $DEB"
-        
-        # 解压 deb
-        rm -rf /tmp/deb_repack
-        mkdir -p /tmp/deb_repack
-        dpkg-deb -x "$DEB" /tmp/deb_repack
-        dpkg-deb -e "$DEB" /tmp/deb_repack/DEBIAN
-        
-        # 复制 Info.plist
-        echo "=== 注入 Info.plist ==="
-        cp CCWeatherModule/Info.plist /tmp/deb_repack/var/jb/Library/ControlCenter/Bundles/CCWeatherModule.bundle/Info.plist
-        cp CCWeatherPrefs/Info.plist /tmp/deb_repack/var/jb/Library/PreferenceBundles/CCWeatherPrefs.bundle/Info.plist
-        
-        echo "=== 验证 ==="
-        ls -la /tmp/deb_repack/var/jb/Library/ControlCenter/Bundles/CCWeatherModule.bundle/Info.plist
-        ls -la /tmp/deb_repack/var/jb/Library/PreferenceBundles/CCWeatherPrefs.bundle/Info.plist
-        
-        # 重新打包
-        rm -f "$DEB"
-        dpkg-deb --root-owner-group -b /tmp/deb_repack "$DEB"
-        echo "=== 重新打包完成 ==="
-        ls -la "$DEB"
+        mkdir -p /tmp/verify
+        dpkg-deb -x "$DEB" /tmp/verify
+        echo "=== Prefs 类型（应为 dynamically linked shared library）==="
+        file /tmp/verify/var/jb/Library/PreferenceBundles/CCWeatherPrefs.bundle/CCWeatherPrefs
+        echo "=== Module 类型 ==="
+        file /tmp/verify/var/jb/Library/ControlCenter/Bundles/CCWeatherModule.bundle/CCWeatherModule
+        echo "=== Tweak 类型 ==="
+        file /tmp/verify/var/jb/Library/MobileSubstrate/DynamicLibraries/CCWeatherTweak.dylib
+        echo "=== Info.plist 检查 ==="
+        ls -la /tmp/verify/var/jb/Library/ControlCenter/Bundles/CCWeatherModule.bundle/Info.plist
+        ls -la /tmp/verify/var/jb/Library/PreferenceBundles/CCWeatherPrefs.bundle/Info.plist
     
     - name: 上传 DEB
       uses: actions/upload-artifact@v4
