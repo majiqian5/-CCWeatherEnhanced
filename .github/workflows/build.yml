@@ -17,6 +17,8 @@ jobs:
       run: |
         echo "查找 zip 文件..."
         find . -name "*.zip" -type f
+        rm -rf /tmp/source_extract
+        mkdir -p /tmp/source_extract
         for z in $(find . -name "*.zip" -type f); do
           echo "解压: $z"
           unzip -o "$z" -d /tmp/source_extract
@@ -34,13 +36,15 @@ jobs:
     
     - name: 安装 Theos
       run: |
-        export THEOS=~/theos
-        git clone --recursive https://github.com/theos/theos.git $THEOS
-        echo "THEOS=$THEOS" >> $GITHUB_ENV
+        rm -rf ~/theos
+        git clone --recursive https://github.com/theos/theos.git ~/theos
+        echo "THEOS=~/theos" >> $GITHUB_ENV
     
     - name: 安装 iOS SDK
       run: |
+        rm -rf ~/theos/sdks
         git clone https://github.com/theos/sdks.git ~/theos/sdks
+        ls ~/theos/sdks/
     
     - name: 编译
       run: |
@@ -48,6 +52,11 @@ jobs:
         make clean package FINALPACKAGE=1
       env:
         THEOS: /Users/runner/theos
+    
+    - name: 列出产物
+      run: |
+        echo "查找 deb："
+        find . -name "*.deb" -type f
     
     - name: 上传 DEB
       uses: actions/upload-artifact@v4
