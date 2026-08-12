@@ -30,6 +30,7 @@ jobs:
           cp -r /tmp/src/* .
           cp -r /tmp/src/.* . 2>/dev/null || true
         fi
+        echo "=== 最终根目录 ==="
         ls -la
     
     - name: 安装 Theos
@@ -37,11 +38,9 @@ jobs:
         rm -rf ~/theos
         git clone --recursive https://github.com/theos/theos.git ~/theos
     
-    - name: 安装 ldid（签名工具）
+    - name: 安装 ldid
       run: |
         brew install ldid
-        which ldid
-        ldid --version 2>&1 || true
     
     - name: 安装 iOS SDK
       run: |
@@ -56,9 +55,32 @@ jobs:
       env:
         THEOS: /Users/runner/theos
     
-    - name: 列出产物
+    - name: 手动注入 Info.plist 到 deb
       run: |
-        find . -name "*.deb" -type f
+        echo "=== 查找 deb ==="
+        DEB=$(find . -name "*.deb" -type f | head -1)
+        echo "DEB: $DEB"
+        
+        # 解压 deb
+        rm -rf /tmp/deb_repack
+        mkdir -p /tmp/deb_repack
+        dpkg-deb -x "$DEB" /tmp/deb_repack
+        dpkg-deb -e "$DEB" /tmp/deb_repack/DEBIAN
+        
+        # 复制 Info.plist
+        echo "=== 注入 Info.plist ==="
+        cp CCWeatherModule/Info.plist /tmp/deb_repack/var/jb/Library/ControlCenter/Bundles/CCWeatherModule.bundle/Info.plist
+        cp CCWeatherPrefs/Info.plist /tmp/deb_repack/var/jb/Library/PreferenceBundles/CCWeatherPrefs.bundle/Info.plist
+        
+        echo "=== 验证 ==="
+        ls -la /tmp/deb_repack/var/jb/Library/ControlCenter/Bundles/CCWeatherModule.bundle/Info.plist
+        ls -la /tmp/deb_repack/var/jb/Library/PreferenceBundles/CCWeatherPrefs.bundle/Info.plist
+        
+        # 重新打包
+        rm -f "$DEB"
+        dpkg-deb --root-owner-group -b /tmp/deb_repack "$DEB"
+        echo "=== 重新打包完成 ==="
+        ls -la "$DEB"
     
     - name: 上传 DEB
       uses: actions/upload-artifact@v4
