@@ -48,23 +48,45 @@ jobs:
       env:
         THEOS: /Users/runner/theos
     
+    - name: 手动注入 Info.plist
+      run: |
+        DEB=$(find . -name "*.deb" | head -1)
+        echo "DEB: $DEB"
+        rm -rf /tmp/deb_repack
+        mkdir -p /tmp/deb_repack
+        dpkg-deb -x "$DEB" /tmp/deb_repack
+        dpkg-deb -e "$DEB" /tmp/deb_repack/DEBIAN
+        
+        echo "=== 注入 Module Info.plist ==="
+        cp CCWeatherModule/Info.plist /tmp/deb_repack/var/jb/Library/ControlCenter/Bundles/CCWeatherModule.bundle/Info.plist
+        
+        echo "=== 注入 Prefs Info.plist ==="
+        cp CCWeatherPrefs/Info.plist /tmp/deb_repack/var/jb/Library/PreferenceBundles/CCWeatherPrefs.bundle/Info.plist
+        
+        echo "=== 验证 ==="
+        ls -la /tmp/deb_repack/var/jb/Library/ControlCenter/Bundles/CCWeatherModule.bundle/Info.plist
+        ls -la /tmp/deb_repack/var/jb/Library/PreferenceBundles/CCWeatherPrefs.bundle/Info.plist
+        
+        rm -f "$DEB"
+        dpkg-deb --root-owner-group -b /tmp/deb_repack "$DEB"
+        echo "=== 重新打包完成 ==="
+        ls -la "$DEB"
+    
     - name: 验证 deb 内容
       run: |
         DEB=$(find . -name "*.deb" | head -1)
         echo "DEB: $DEB"
         mkdir -p /tmp/verify
         dpkg-deb -x "$DEB" /tmp/verify
-        echo "=== 文件结构 ==="
-        find /tmp/verify -type f | sort
-        echo ""
-        echo "=== Prefs 类型（应为 dynamically linked shared library）==="
+        echo "=== 文件数量 ==="
+        find /tmp/verify -type f | wc -l
+        echo "=== Prefs 类型 ==="
         file /tmp/verify/var/jb/Library/PreferenceBundles/CCWeatherPrefs.bundle/CCWeatherPrefs
-        echo ""
         echo "=== Module 类型 ==="
         file /tmp/verify/var/jb/Library/ControlCenter/Bundles/CCWeatherModule.bundle/CCWeatherModule
-        echo ""
-        echo "=== Tweak 类型 ==="
-        file /tmp/verify/var/jb/Library/MobileSubstrate/DynamicLibraries/CCWeatherTweak.dylib
+        echo "=== Info.plist ==="
+        ls -la /tmp/verify/var/jb/Library/ControlCenter/Bundles/CCWeatherModule.bundle/Info.plist
+        ls -la /tmp/verify/var/jb/Library/PreferenceBundles/CCWeatherPrefs.bundle/Info.plist
     
     - name: 上传 DEB
       uses: actions/upload-artifact@v4
