@@ -1,0 +1,10 @@
+Package: com.axs.ccweatherenhanced
+Name: 控制中心天气增强版
+Depends: mobilesubstrate, firmware (>= 15.0), preferenceloader
+Version: 3.0.0
+Architecture: iphoneos-arm64
+Description: 功能拉满的控制中心天气美化插件，支持多主题、彩虹渐变、自定义尺寸、丰富交互。
+Maintainer: Axs
+Author: simon
+Section: 控制中心
+Icon: https://axs66.github.io/pro/icon/ccweathermodule.png
