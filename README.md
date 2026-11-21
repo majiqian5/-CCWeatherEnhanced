@@ -1,181 +1,67 @@
-# 控制中心天气增强版 CCWeatherEnhanced v2.0.0
+# AxsEQ 真实电平载荷 v1.7（源码）
 
-功能拉满的 iOS 控制中心天气美化插件，支持 NathanLR + ElleKit (rootless)，兼容 iOS 15.0+。
+mediaserverd 内取真实 PCM，算出 10 段频谱，30Hz 推到 127.0.0.1:47923。
+v1.7 重点：修 NaN 永久卡死。
 
-## 功能特性
+## 文件说明
 
-### 外观
-- 8 种预设主题（跟随系统/深色/浅色/海洋蓝/日落橙/森林绿/梦幻紫/黑白极简）
-- 毛玻璃 / 半透明 / 实色三种背景样式
-- 圆角大小可调（0~40）
-- 模块透明度可调（0.2~1.0）
-- 边框开关与粗细调节
-- 阴影效果（半径/透明度可调）
-- 天气图标大小可调
-- 温度/城市/小时预报字体大小独立可调
+| 文件 | 作用 |
+|---|---|
+| AxsLevel.m | 载荷本体（注入 AudioUnitRender 取样本 → RBJ 带通 10 段 → 平滑 → TCP 推送） |
+| axs_lv.c | 终端读数工具，连 47923 打 20 行 |
+| axs_load.lua | 在 eqe core 的 Lua 控制台里 ffi 加载 dylib 并 start |
+| ent.plist | 签名权限（platform-application 等） |
+| AxsTcpLevels.m | 上一代 TCP 直推实现，备用 |
+| Makefile / build_xcode.sh / make_deb.sh | 本地编译与打包 |
+| .github/workflows/build-axslevel.yml | GitHub Action 全自动编译 arm64e |
 
-### 字体颜色
-- 自定义 RGB 颜色
-- 温度、城市、天气状态、小时预报可分别设置颜色
-- 彩虹渐变文字
-- 彩虹动态流动效果（速度可调）
-- 渐变方向可调（水平/垂直/对角）
+## 编译（推荐 GitHub Action，唯一能出 arm64e 的方式）
 
-### 模块尺寸
-- 小：2×2
-- 横向：4×2
-- 大：4×4
-- 动态尺寸模式
-- 内容根据尺寸自动重新排版
+1. 把整个目录推到仓库（.github/workflows/ 要在仓库根）
+2. Actions 跑 build-axslevel
+3. 下载 artifact axslevel-arm64e
 
-### 天气内容
-- 当前温度、最高/最低温度
-- 天气状况、降水概率
-- 当前城市（自动定位/自定义）
-- 未来小时预报（6小时/24小时滚动）
-- 摄氏/华氏切换
-- 自动刷新间隔（5/15/30/60分钟）
-- 使用 Open-Meteo 免费 API，无需 API Key
+## 编译（本地 macOS 有 Xcode 也行）
 
-### 交互
-- 单击：展开/收起 / 刷新 / 设置 / 切换主题 / 无
-- 双击：可自定义
-- 长按：可自定义
-- 双指点击：可自定义
-- 展开状态显示更多天气信息
+    sh build_xcode.sh
 
-### 设置
-独立 Preference Bundle，分组管理：外观、文字、布局、天气、交互、高级。
+Linux 上用 ld64.lld 不行：它不支持 -arch arm64e，链接直接报
+`missing or unsupported -arch arm64e`，别浪费时间。
 
-## 工程结构
+## 装机
 
-```
-CCWeatherEnhanced/
-├── Makefile                    # 顶层编译文件
-├── control                     # deb 包控制信息
-├── CCWeatherConfig.h           # 公共配置（键名/枚举/默认值）
-├── CCWeatherModule/            # 控制中心模块 Bundle
-│   ├── Makefile
-│   ├── Info.plist
-│   ├── CCWeatherModule.h/m     # 模块主类（CCUIContentModule）
-│   ├── CCWeatherViewController.h/m  # 主视图控制器
-│   ├── CCWThemeManager.h/m     # 主题与偏好管理
-│   ├── CCWRainbowLabel.h/m     # 彩虹渐变文字标签
-│   ├── CCWeatherManager.h/m    # 天气数据获取
-│   ├── CCWeatherData.h/m       # 数据模型
-│   └── Resources/              # 天气图标（29个）
-├── CCWeatherTweak/             # 注入 Tweak
-│   ├── Makefile
-│   ├── Tweak.xm                # Logos 注入代码
-│   └── CCWeatherTweak.plist    # 注入过滤
-├── CCWeatherPrefs/             # 设置插件 Bundle
-│   ├── Makefile
-│   ├── Info.plist
-│   ├── CCWRootListController.h/mm  # 设置主控制器
-│   └── Resources/              # 设置图标
-└── layout/                     # 额外安装文件
-    └── Library/PreferenceLoader/Preferences/CCWeatherPrefs.plist
-```
+    dpkg -i --force-overwrite <deb>
 
-## 编译方法
+落地路径：
+- /var/jb/Library/AxsEQ/AxsLevel.dylib
+- /var/jb/Library/AxsEQ/axs_load.lua
+- /var/jb/usr/bin/axs_lv
 
-### 方法一：手机端 NewTerm 编译（推荐，无需 Mac）
+## 用法
 
-1. 确保已安装：`theos`、`clang`、`ldid`、`dpkg`
-   ```
-   apt install theos clang ldid dpkg
-   ```
+    axs_on            # 注入 + 跑一次读数
+    axs_lv            # 只看读数
 
-2. 设置环境变量：
-   ```
-   export THEOS=/opt/theos
-   export PATH=$THEOS/bin:$PATH
-   ```
+## v1.7 改了什么（7 处 isfinite）
 
-3. 进入工程目录编译：
-   ```
-   cd CCWeatherEnhanced
-   make clean package FINALPACKAGE=1
-   ```
+1. 输入样本非有限值按 0
+2. bq_run 出口 NaN → 清该段 x1/x2/y1/y2
+3. bq_bandpass 采样率非法退回 44100
+4. bands_init 系数 NaN → 整组按 44100 重算
+5. feed 里 span<=5 退回 38.0，v / prev 都夹一次
+6. srv_thread 发送前把 gBand 洗成 0
+7. feed_from float32 分支：非有限样本过半 → 改判 int16 重解
 
-4. 生成的 deb 在 `./packages/` 目录下。
+原理：NaN 与任何数比较为假，`if(v<0)/if(v>100)` 夹不住它，
+一旦进滤波器就把状态永久污染，所以必须在四个入口全部堵。
 
-### 方法二：GitHub Actions 远程编译
+## 判读
 
-1. 将工程推送到 GitHub 仓库
-2. 创建 `.github/workflows/build.yml`：
-   ```yaml
-   name: Build
-   on: [push]
-   jobs:
-     build:
-       runs-on: ubuntu-latest
-       steps:
-         - uses: actions/checkout@v3
-         - name: Install Theos
-           run: |
-             git clone --recursive https://github.com/theos/theos.git $THEOS
-             echo "THEOS=$THEOS" >> $GITHUB_ENV
-         - name: Build
-           run: make clean package FINALPACKAGE=1
-         - uses: actions/upload-artifact@v3
-           with:
-             path: packages/*.deb
-   ```
+安静 5~25，放歌 30~80，鼓点 90~100。
+某段长期 0.00 正常（高频无能量）。出现 nan 说明状态被污染，
+v1.7 之前要 killall -9 mediaserverd 才能恢复。
 
-### 方法三：Mac 本地编译
+## 量程
 
-```bash
-export THEOS=/opt/theos
-make clean package FINALPACKAGE=1
-```
-
-## 安装
-
-```bash
-# 手机端
-dpkg -i com.axs.ccweatherenhanced_2.0.0_iphoneos-arm64.deb
-killall -9 SpringBoard
-
-# 或通过 Sileo/Zebra 安装
-```
-
-## 注意事项
-
-1. **首次使用**：安装后到设置 → 控制中心天气增强版 中配置，然后添加控制中心模块。
-2. **定位权限**：自动定位需要在设置中开启定位权限。
-3. **网络**：天气数据来自 Open-Meteo，需要网络连接。
-4. **rootless**：本插件已配置为 rootless 方案，安装路径为 `/var/jb/Library/`。
-5. **安全模式**：如果进入安全模式，请检查 `/var/mobile/Library/Logs/CrashReporter/` 下的崩溃日志。
-
-## 与原版的区别
-
-- 完全重写模块，不再依赖原版二进制
-- 新增 8 种主题、彩虹渐变、动态流动
-- 新增模块尺寸切换（2×2 / 4×2 / 4×4）
-- 新增完整的交互自定义
-- 新增 24 小时滚动预报
-- 修复原版可能的兼容问题
-- 支持 NathanLR + ElleKit rootless
-
-## 故障排查
-
-### 模块不显示
-1. 确认已在控制中心编辑中添加"天气增强版"
-2. 检查 `dpkg -l | grep ccweather` 是否安装成功
-3. 重启 SpringBoard
-
-### 天气不更新
-1. 检查网络连接
-2. 检查定位权限（设置 → 隐私 → 定位服务）
-3. 在设置中点击"应用并刷新"
-
-### 进入安全模式
-1. 查看崩溃日志
-2. 尝试关闭彩虹动画（可能某些设备不兼容）
-3. 联系开发者并提供日志
-
-## 版本历史
-
-- v2.0.0：完全重写，功能拉满版
-- v1.0.5：原版基础功能
+/var/tmp/AxsEQ/range.txt，默认 `-42 6`，每秒重读，仅当 hi > lo+5 生效。
+收窄成 `-38 0` 读数更满，`-46 4` 更保守。
