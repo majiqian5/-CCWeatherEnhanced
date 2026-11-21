@@ -1,0 +1,59 @@
+name: build-axslevel
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检查源码
+        run: |
+          set -e
+          wc -l AxsLevel.m axs_lv.c axs_load.lua
+          echo "isfinite 数量（应为 7 处以上）"
+          grep -c isfinite AxsLevel.m
+
+      - name: 环境信息
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+
+      - name: 编译 arm64e
+        run: |
+          set -e
+          mkdir -p out
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          xcrun --sdk iphoneos clang -target arm64e-apple-ios15.0 -isysroot "$SDK" -dynamiclib -O2 -fobjc-arc -framework Foundation -framework AudioToolbox -install_name /var/jb/Library/AxsEQ/AxsLevel.dylib -o out/AxsLevel.dylib AxsLevel.m
+          xcrun --sdk iphoneos clang -target arm64e-apple-ios15.0 -isysroot "$SDK" -O2 -o out/axs_lv axs_lv.c
+
+      - name: 签名
+        run: |
+          set -e
+          brew install ldid 2>/dev/null || true
+          if command -v ldid >/dev/null; then
+            ldid -Sent.plist out/AxsLevel.dylib
+            ldid -Sent.plist out/axs_lv
+          else
+            codesign -s - --entitlements ent.plist -f out/AxsLevel.dylib
+            codesign -s - --entitlements ent.plist -f out/axs_lv
+          fi
+
+      - name: 校验架构
+        run: |
+          lipo -info out/AxsLevel.dylib
+          otool -hv out/AxsLevel.dylib | head -6
+          ls -l out/
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: axslevel-arm64e
+          path: |
+            out/AxsLevel.dylib
+            out/axs_lv
+            axs_load.lua
+            ent.plist
